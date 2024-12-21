@@ -1,0 +1,34 @@
+# decorators.py
+from functools import wraps
+from flask import request, redirect, url_for, current_app, flash, session
+from datetime import datetime
+
+# Importar Auth desde el módulo auth (asegúrate de que la ruta sea correcta)
+from app.auth import Auth
+from app.models import User
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.cookies.get('auth_token')  # Usa la cookie en lugar del header
+        session['next'] = request.url  # Guardar la URL actual
+
+        if not token:
+            flash('No tienes autorización para acceder a esta página.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        # Ahora sí puedes llamar a Auth.decode_token
+        decoded, error = Auth.decode_token(token)
+        if not decoded:
+            flash(error, 'danger')
+            return redirect(url_for('auth.login'))
+
+        user = User.query.get(decoded.get('user_id'))
+        if not user:
+            flash('Usuario no encontrado.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        # Inyectar al usuario en `kwargs` para uso posterior
+        kwargs['current_user'] = user
+        return f(*args, **kwargs)
+    return decorated
