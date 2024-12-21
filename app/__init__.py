@@ -3,6 +3,12 @@ from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
+from dotenv import load_dotenv
+import os
+
+
+# Carga las variables desde .env
+load_dotenv()
 
 # Inicializar extensiones (sin asociarlas a la app todavía)
 db = SQLAlchemy()
@@ -12,7 +18,10 @@ login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object("config.Config")  # Cargar configuraciones desde config.py
+
+    # Configurar SQLAlchemy
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DEV_DATABASE_URI')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     migrate.init_app(app, db)  # Vincula Flask-Migrate con tu aplicación y base de datos
 
@@ -30,7 +39,7 @@ def create_app():
         from .routes import main  # Importar el Blueprint main
         from .auth import auth
         from .models import User  # Modelo de usuario
-        
+
         #Registra los blueprints
         app.register_blueprint(main)  # Registrar el Blueprint main
         app.register_blueprint(auth, url_prefix="/auth")
