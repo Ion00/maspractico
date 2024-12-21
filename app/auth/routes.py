@@ -5,15 +5,15 @@ from app import redis_client
 import jwt
 from datetime import datetime, timedelta
 from app import db, bcrypt  # Asegúrate de que bcrypt esté importado desde __init__.py
-from app.auth import auth, MAX_LOGIN_ATTEMPTS
+from app.auth import auth
 from app.auth.utils import generate_token, send_recovery_email
-
-MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_TIME = 3600  # 1 hora en segundos
 
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
+    max_attempts = current_app.config['MAX_LOGIN_ATTEMPTS']
+    lockout_time = current_app.config['LOCKOUT_TIME']
+    
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
@@ -23,7 +23,7 @@ def login():
         ip_attempts_key = f"failed_attempts_ip:{client_ip}"
         ip_attempts = redis_client.get(ip_attempts_key)  # Obtener el valor actual
 
-        if ip_attempts and int(ip_attempts) >= MAX_LOGIN_ATTEMPTS:
+        if ip_attempts and int(ip_attempts) >= max_attempts:
             flash('Demasiados intentos fallidos desde esta IP. Por favor, intenta más tarde.', 'danger')
             return redirect(url_for('auth.login'))
 
@@ -31,7 +31,7 @@ def login():
         email_attempts_key = f"failed_attempts_email:{email}"
         email_attempts = redis_client.get(email_attempts_key)  # Obtener el valor actual
 
-        if email_attempts and int(email_attempts) >= MAX_LOGIN_ATTEMPTS:
+        if email_attempts and int(email_attempts) >= max_attempts:
             flash('Demasiados intentos fallidos para este correo. Por favor, intenta más tarde.', 'danger')
             return redirect(url_for('auth.login'))
 
@@ -41,10 +41,10 @@ def login():
         if not user or not bcrypt.check_password_hash(user.clave, password):
             # Incrementar intentos fallidos en Redis
             redis_client.incr(ip_attempts_key)
-            redis_client.expire(ip_attempts_key, LOCKOUT_TIME)  # Establecer tiempo de bloqueo
+            redis_client.expire(ip_attempts_key, lockout_time)  # Establecer tiempo de bloqueo
 
             redis_client.incr(email_attempts_key)
-            redis_client.expire(email_attempts_key, LOCKOUT_TIME)
+            redis_client.expire(email_attempts_key, lockout_time)
 
             flash('Credenciales inválidas.', 'danger')
             return redirect(url_for('auth.login'))

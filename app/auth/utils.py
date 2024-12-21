@@ -16,7 +16,6 @@ def verify_token(token, expiration=3600):
     except Exception:
         return None
 
-
 def send_recovery_email(user_email, recovery_url):
     msg = Message('Recuperación de Contraseña',
                   sender=current_app.config['MAIL_USERNAME'],
