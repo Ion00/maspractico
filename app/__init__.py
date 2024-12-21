@@ -6,6 +6,7 @@ from flask_mail import Mail
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 import os
+import redis
 
 
 # Carga las variables desde .env
@@ -17,6 +18,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
+redis_client = None
 
 def create_app():
     app = Flask(__name__)
@@ -33,6 +35,9 @@ def create_app():
     app.config['MAIL_USE_TLS'] = True
     app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
     app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+    # Configuración de Redis
+    global redis_client
+    redis_client = redis.StrictRedis(host='localhost', port=6379, decode_responses=True)
 
     migrate.init_app(app, db)  # Vincula Flask-Migrate con tu aplicación y base de datos
 

@@ -1,13 +1,15 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, session, make_response
 from flask_login import login_user, logout_user
 from app.models import User
+from app import redis_client
 import jwt
 from datetime import datetime, timedelta
 from app import db, bcrypt  # Asegúrate de que bcrypt esté importado desde __init__.py
 from app.auth import auth, MAX_LOGIN_ATTEMPTS
 from app.auth.utils import generate_token, send_recovery_email
-from app.auth import auth
 
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_TIME = 3600  # 1 hora en segundos
 
 
 @auth.route('/login', methods=['GET', 'POST'])
@@ -15,39 +17,75 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        client_ip = request.remote_addr  # Obtener la IP del cliente
+
+        # Verificar intentos fallidos por IP
+        ip_attempts_key = f"failed_attempts_ip:{client_ip}"
+        ip_attempts = redis_client.get(ip_attempts_key)  # Obtener el valor actual
+
+        if ip_attempts and int(ip_attempts) >= MAX_LOGIN_ATTEMPTS:
+            flash('Demasiados intentos fallidos desde esta IP. Por favor, intenta más tarde.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        # Verificar intentos fallidos por correo
+        email_attempts_key = f"failed_attempts_email:{email}"
+        email_attempts = redis_client.get(email_attempts_key)  # Obtener el valor actual
+
+        if email_attempts and int(email_attempts) >= MAX_LOGIN_ATTEMPTS:
+            flash('Demasiados intentos fallidos para este correo. Por favor, intenta más tarde.', 'danger')
+            return redirect(url_for('auth.login'))
+
         user = User.query.filter_by(correo_e=email).first()
 
-        # Verificar si excedió el máximo de intentos fallidos
-        if user.login_failures is not None and user.login_failures >= MAX_LOGIN_ATTEMPTS:
-            flash('Demasiados intentos fallidos. Por favor, intenta más tarde o recupera tu contraseña.', 'warning')
-            return redirect(url_for('auth.recover_password'))
-
-        # Incrementar intentos fallidos en la base de datos
+        # Validar usuario y contraseña
         if not user or not bcrypt.check_password_hash(user.clave, password):
-            user.login_failures += 1
-            db.session.commit()
+            # Incrementar intentos fallidos en Redis
+            redis_client.incr(ip_attempts_key)
+            redis_client.expire(ip_attempts_key, LOCKOUT_TIME)  # Establecer tiempo de bloqueo
+
+            redis_client.incr(email_attempts_key)
+            redis_client.expire(email_attempts_key, LOCKOUT_TIME)
+
             flash('Credenciales inválidas.', 'danger')
             return redirect(url_for('auth.login'))
 
-        # Reiniciar intentos fallidos si el login es exitoso
-        user.login_failures = 0
-        db.session.commit()
+        # Reiniciar intentos fallidos al iniciar sesión con éxito
+        redis_client.delete(ip_attempts_key)
+        redis_client.delete(email_attempts_key)
+
+        # Registrar ultima ip de logeo TODO
+        if user:
+            user.login_failures = 0
+            db.session.commit()
 
         # Verificar si el usuario ya tiene un token y si es válido
-        if user.token and Auth.is_valid_token(user, user.token):
-            token = user.token
+        if user.token:
+            # Validar si el token es válido
+            is_valid, error_message = Auth.is_valid_token(user, user.token)
+
+            if not is_valid:
+                # El token no es válido (expirado o incorrecto)
+                flash(error_message, 'warning')
+                # Generar un nuevo token
+                token = Auth.generate_token(user.id)
+            else:
+                # Token válido
+                token = user.token
         else:
-            # Generar un nuevo token
+            # No hay token, generar uno nuevo
             token = Auth.generate_token(user.id)
 
-        # Almacena el token en la base de datos si ha cambiado
+        # Almacenar el nuevo token en la base de datos
         if user.token != token:
             user.token = token
             user.token_expiration = datetime.utcnow() + timedelta(hours=1)
             db.session.commit()
 
+        # Mensaje coherente para el flujo exitoso
+        flash('Inicio de sesión exitoso.', 'success')
+
         # Crear la respuesta con la cookie del token
-        response = make_response(redirect(url_for('main.list_users')))  # Redirigir al listado de usuarios
+        response = make_response(redirect(url_for('main.list_users')))
         response.set_cookie(
             'auth_token',
             token,
@@ -56,7 +94,6 @@ def login():
             samesite='Lax'
         )
 
-        flash('Inicio de sesión exitoso.', 'success')
         return response
 
     return render_template('login.html')
