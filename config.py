@@ -25,6 +25,7 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     # Configuración específica para pruebas
     TESTING = True
+    ENV = 'testing'
     SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URI')
     MAX_LOGIN_ATTEMPTS = 2
     LOCKOUT_TIME = 300  # Tiempo de bloqueo reducido (5 minutos)
