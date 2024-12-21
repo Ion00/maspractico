@@ -69,6 +69,19 @@ def logout():
     flash('Has cerrado sesión correctamente.', 'success')
     return response
 
+@auth.route('/recover_password', methods=['GET', 'POST'])
+def recover_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        # Aquí implementa la lógica para manejar el correo
+        if email:  # Validar el correo y enviar instrucciones
+            flash('Se han enviado las instrucciones a tu correo.', 'success')
+        else:
+            flash('Por favor, introduce un correo válido.', 'error')
+        return redirect(url_for('auth.recover_password'))
+    
+    return render_template('recover_password.html')
+
 class Auth:
     @staticmethod
     def generate_token(user_id, expiration_hours=1):

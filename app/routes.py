@@ -20,8 +20,8 @@ def new_products():
 
 @main.route('/dashboard')
 @token_required
-def dashboard():
-    return f"Dashboard protegido - Bienvenido {current_user.username}!"
+def dashboard(current_user):
+    return f"Dashboard protegido - Bienvenido {current_user.correo_e}!"
 
 @main.route("/total_sales")
 @login_required

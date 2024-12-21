@@ -19,6 +19,10 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
 
+    # Configurar la clave secreta
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+    app.config['ENV'] = os.getenv('ENV', 'development')
+
     # Configurar SQLAlchemy
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DEV_DATABASE_URI')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
