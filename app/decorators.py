@@ -1,10 +1,9 @@
-# decorators.py
 from functools import wraps
 from flask import request, redirect, url_for, current_app, flash, session
 from datetime import datetime
 
-# Importar Auth desde el módulo auth (asegúrate de que la ruta sea correcta)
-from app.auth import Auth
+# Importar Auth desde el lugar correcto
+from app.auth.routes import Auth
 from app.models import User
 
 def token_required(f):
@@ -17,7 +16,7 @@ def token_required(f):
             flash('No tienes autorización para acceder a esta página.', 'danger')
             return redirect(url_for('auth.login'))
 
-        # Ahora sí puedes llamar a Auth.decode_token
+        # Decodificar el token
         decoded, error = Auth.decode_token(token)
         if not decoded:
             flash(error, 'danger')

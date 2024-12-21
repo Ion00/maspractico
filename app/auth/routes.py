@@ -1,14 +1,14 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, session, make_response
 from flask_login import login_user, logout_user
-from .models import User
+from app.models import User
 import jwt
 from datetime import datetime, timedelta
 from app import db, bcrypt  # Asegúrate de que bcrypt esté importado desde __init__.py
+from app.auth import auth, MAX_LOGIN_ATTEMPTS
+from app.auth.utils import generate_token, send_recovery_email
+from app.auth import auth
 
-auth = Blueprint('auth', __name__)
 
-# Almacenar un límite de intentos fallidos
-MAX_LOGIN_ATTEMPTS = 5  # Máximo número de intentos antes de bloquear temporalmente al usuario
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
@@ -69,18 +69,45 @@ def logout():
     flash('Has cerrado sesión correctamente.', 'success')
     return response
 
+
 @auth.route('/recover_password', methods=['GET', 'POST'])
 def recover_password():
     if request.method == 'POST':
         email = request.form.get('email')
-        # Aquí implementa la lógica para manejar el correo
-        if email:  # Validar el correo y enviar instrucciones
-            flash('Se han enviado las instrucciones a tu correo.', 'success')
+        user = User.query.filter_by(email=email).first()
+
+        if user:
+            token = generate_token(user.email)
+            recovery_url = url_for('auth.reset_password', token=token, _external=True)
+            send_recovery_email(user.email, recovery_url)
+            flash('Se ha enviado un enlace de recuperación a tu correo.', 'success')
         else:
-            flash('Por favor, introduce un correo válido.', 'error')
+            flash('El correo no está registrado.', 'error')
+
         return redirect(url_for('auth.recover_password'))
-    
+
     return render_template('recover_password.html')
+
+
+@auth.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    # Validar el token y permitir el cambio de contraseña
+    from app.auth.utils import verify_token
+
+    email = verify_token(token)
+    if not email:
+        flash('El enlace de recuperación es inválido o ha caducado.', 'error')
+        return redirect(url_for('auth.recover_password'))
+
+    if request.method == 'POST':
+        new_password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.set_password(new_password)  # Asegúrate de tener este método en tu modelo User
+            flash('Tu contraseña ha sido cambiada con éxito.', 'success')
+            return redirect(url_for('auth.login'))
+
+    return render_template('reset_password.html')
 
 class Auth:
     @staticmethod
