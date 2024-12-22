@@ -17,12 +17,12 @@ def token_required(f):
             return redirect(url_for('auth.login'))
 
         # Decodificar el token
-        decoded, error = Auth.decode_token(token)
-        if not decoded:
-            flash(error, 'danger')
+        result = Auth.decode_token(token)
+        if not result["valid"]:
+            flash(result["error"], 'danger')  # Usa el error del diccionario
             return redirect(url_for('auth.login'))
 
-        user = User.query.get(decoded.get('user_id'))
+        user = User.query.get(result["payload"].get('user_id'))
         if not user:
             flash('Usuario no encontrado.', 'danger')
             return redirect(url_for('auth.login'))
@@ -31,3 +31,4 @@ def token_required(f):
         kwargs['current_user'] = user
         return f(*args, **kwargs)
     return decorated
+

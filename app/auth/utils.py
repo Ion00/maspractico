@@ -3,7 +3,14 @@ from flask import current_app
 from flask_mail import Message
 from app import mail  # Asegúrate de inicializar Flask-Mail en app/__init__.py
 
-def generate_token(email):
+# En utils.py
+def generate_recovery_token(email):
+    """
+    Genera un token seguro para recuperación de contraseña.
+    
+    :param email: Correo electrónico del usuario.
+    :return: Token seguro codificado.
+    """
     serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
     return serializer.dumps(email, salt='password-recovery-salt')
 

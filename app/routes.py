@@ -4,7 +4,7 @@ from .odoo import get_active_products_with_images_and_urls, get_website_name, ge
 from .forms import RegistrationForm, UpdateUserForm  # Importa el formulario creado
 from app.models import User
 from app.decorators import token_required
-from app import bcrypt, db
+from app import bcrypt, db, limiter
 
 # Definir un Blueprint para organizar mejor las rutas
 main = Blueprint("main", __name__)
@@ -35,12 +35,13 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     flash('User deleted successfully!', 'success')
-    return redirect(url_for('list_users'))
+    return redirect(url_for('main.list_users'))
 
 # Optimized
 
 # Ruta para crear un usuario nuevo
 @main.route('/register', methods=['GET', 'POST'])
+@limiter.limit(lambda: current_app.config["REGISTER_RATE_LIMIT"])  # Límite específico
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
