@@ -6,6 +6,7 @@ from authlib.integrations.sqla_oauth2 import OAuth2ClientMixin, OAuth2TokenMixin
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import json
 
 class User(db.Model, UserMixin):
     __tablename__ = 'usuarios'
@@ -38,6 +39,18 @@ class OAuth2Client(db.Model, OAuth2ClientMixin):
     redirect_uris = db.Column(db.Text, nullable=False)  # URI de redirección permitido
     scope = db.Column(db.String(255), default='')  # Alcances solicitados
     user_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
+
+    client_id_issued_at = db.Column(db.Integer, nullable=True)
+    client_secret_expires_at = db.Column(db.Integer, nullable=True)
+    client_metadata = db.Column("client_metadata", db.Text, nullable=True)
+
+    @property
+    def client_metadata(self):
+        return json.loads(self.client_metadata)
+
+    @client_metadata.setter
+    def client_metadata(self, value):
+        self.client_metadata = json.dumps(value)
 
 
 class OAuth2Token(db.Model, OAuth2TokenMixin):

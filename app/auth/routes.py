@@ -107,12 +107,23 @@ def authorize():
     if not client:
         return jsonify({'error': 'Cliente no encontrado'}), 400
 
+    # **Deserializar `client_metadata` y `redirect_uris`**
+    try:
+        client_metadata = json.loads(client.client_metadata)
+        redirect_uris = json.loads(client.redirect_uris)
+    except json.JSONDecodeError as e:
+        return jsonify({
+        'error': f"Error en la configuración del cliente: "
+                 f"client_metadata: {client.client_metadata}, "
+                 f"redirect_uris: {client.redirect_uris}"
+    }), 500
+
     # Validar redirect_uri
-    if redirect_uri not in client.redirect_uris:
+    if redirect_uri not in redirect_uris:
         return jsonify({'error': 'URI de redirección no válida'}), 400
 
     # Validar response_type
-    supported_response_types = client.client_metadata.get('response_types', [])
+    supported_response_types = client_metadata.get('response_types', [])
     if response_type not in supported_response_types:
         return jsonify({'error': 'unsupported_response_type'}), 400
 
@@ -140,6 +151,7 @@ def authorize():
             return authorization.create_authorization_response(grant_user=user)
 
     return jsonify({'error': 'Autorización denegada'}), 403
+
 
 
 @auth.route('/token', methods=['POST'])
