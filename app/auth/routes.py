@@ -1,13 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, session, make_response
 from flask_login import login_user, logout_user
-from app.models import User
-from app import redis_client
-import jwt
-from datetime import datetime, timedelta
-from app import db, bcrypt, limiter
+from app import db, bcrypt, limiter, redis_client, authorization
+from app.models import User, OAuth2Client
 from app.auth import auth
 from app.auth.utils import generate_recovery_token, verify_token, send_recovery_email
-
+from datetime import datetime, timedelta
+import jwt, json
 
 @auth.route('/login', methods=['GET', 'POST'])
 @limiter.limit(lambda: current_app.config["LOGIN_RATE_LIMIT"])  # Límite específico
@@ -21,6 +19,9 @@ def login():
         if not user or not bcrypt.check_password_hash(user.clave, password):
             flash('Credenciales inválidas.', 'danger')
             return redirect(url_for('auth.login'))
+
+        # Guardar el user_id en la sesión
+        session['user_id'] = user.id
 
         # Verificar si el usuario ya tiene un token
         if not user.token or not Auth.is_valid_token(user, user.token)[0]:
@@ -92,6 +93,59 @@ def reset_password(token):
             return redirect(url_for('auth.login'))
 
     return render_template('reset_password.html')
+
+
+@auth.route('/authorize', methods=['GET', 'POST'])
+def authorize():
+    client_id = request.args.get('client_id')
+    response_type = request.args.get('response_type')
+    redirect_uri = request.args.get('redirect_uri')
+    scope = request.args.get('scope')
+
+    # Validar el cliente
+    client = OAuth2Client.query.filter_by(client_id=client_id).first()
+    if not client:
+        return jsonify({'error': 'Cliente no encontrado'}), 400
+
+    # Validar redirect_uri
+    if redirect_uri not in client.redirect_uris:
+        return jsonify({'error': 'URI de redirección no válida'}), 400
+
+    # Validar response_type
+    supported_response_types = client.client_metadata.get('response_types', [])
+    if response_type not in supported_response_types:
+        return jsonify({'error': 'unsupported_response_type'}), 400
+
+    # Obtener el usuario autenticado
+    user_id = session.get('user_id')
+    if not user_id:
+        session['next_url'] = request.url
+        return redirect(url_for('auth.login'))
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    if request.method == 'GET':
+        return render_template(
+            'authorize.html',
+            client_id=client_id,
+            scope=scope,
+            redirect_uri=redirect_uri
+        )
+
+    if request.form.get('confirm') == 'yes':
+        # Crear la respuesta de autorización para el flujo implícito
+        if response_type == 'token':
+            return authorization.create_authorization_response(grant_user=user)
+
+    return jsonify({'error': 'Autorización denegada'}), 403
+
+
+@auth.route('/token', methods=['POST'])
+def issue_token():
+    return authorization.create_token_response()
+
 
 class Auth:
     @staticmethod

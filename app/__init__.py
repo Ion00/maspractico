@@ -6,6 +6,9 @@ from flask_mail import Mail
 from flask_bcrypt import Bcrypt
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from authlib.oauth2.rfc6749.grants import ImplicitGrant
+from authlib.integrations.flask_oauth2 import AuthorizationServer
+from authlib.integrations.sqla_oauth2 import create_query_client_func, create_save_token_func
 from dotenv import load_dotenv
 import os
 import redis
@@ -21,6 +24,18 @@ bcrypt = Bcrypt()
 login_manager = LoginManager()
 redis_client = None
 limiter = None  # Inicialización de Flask-Limiter
+
+authorization = AuthorizationServer()
+authorization.register_grant(ImplicitGrant)
+
+# Permitir transporte inseguro solo en desarrollo
+def allow_insecure_transport():
+    import os
+    from authlib.oauth2.rfc6749.errors import InsecureTransportError 
+    if os.getenv('ENV') == 'development':
+        InsecureTransportError.check = lambda uri: None  # Deshabilitar la validación
+
+allow_insecure_transport() # Borrar esto y la funcion allow_insecure_transport
 
 def create_app(config_class='config.DevelopmentConfig'):
     app = Flask(__name__)
@@ -59,6 +74,14 @@ def create_app(config_class='config.DevelopmentConfig'):
         from .routes import main
         from app.auth.routes import auth
         from .models import User
+        # Configurar servidor OAuth2
+        from app.models import OAuth2Client, OAuth2Token
+
+        authorization.init_app(
+            app,
+            query_client=create_query_client_func(db.session, OAuth2Client),
+            save_token=create_save_token_func(db.session, OAuth2Token)
+        )
 
         app.register_blueprint(main)
         app.register_blueprint(auth, url_prefix="/auth")

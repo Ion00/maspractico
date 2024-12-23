@@ -1,4 +1,4 @@
-from flask import render_template, Blueprint, jsonify, flash, request, redirect, url_for
+from flask import render_template, Blueprint, jsonify, flash, request, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from .odoo import get_active_products_with_images_and_urls, get_website_name, get_total_sales_last_month
 from .forms import RegistrationForm, UpdateUserForm  # Importa el formulario creado
