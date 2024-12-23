@@ -31,26 +31,32 @@ class User(db.Model, UserMixin):
             raise ValueError(f"Error al crear el usuario: {str(e)}")
 
 
-class OAuth2Client(db.Model, OAuth2ClientMixin):
+class OAuth2Client(db.Model):
     __tablename__ = 'oauth2_client'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # Clave primaria
-    client_id = db.Column(db.String(40), unique=True, nullable=False)  # ID único del cliente
-    client_secret = db.Column(db.String(55), nullable=False)  # Secreto del cliente
-    redirect_uris = db.Column(db.Text, nullable=False)  # URI de redirección permitido
-    scope = db.Column(db.String(255), default='')  # Alcances solicitados
-    user_id = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
 
-    client_id_issued_at = db.Column(db.Integer, nullable=True)
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.String(255), nullable=False, unique=True)
+    client_secret = db.Column(db.String(255), nullable=True)
+    redirect_uris = db.Column(db.Text, nullable=False)
+    scope = db.Column(db.String(255), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    client_id_issued_at = db.Column(db.Integer, default=lambda: int(datetime.utcnow().timestamp()), nullable=False)
     client_secret_expires_at = db.Column(db.Integer, nullable=True)
-    client_metadata = db.Column("client_metadata", db.Text, nullable=True)
-
+    _client_metadata = db.Column("client_metadata", db.Text, nullable=True)
+    
+    # Propiedad para manejar client_metadata
     @property
     def client_metadata(self):
-        return json.loads(self.client_metadata)
+        if not self._client_metadata:
+            return {}
+        try:
+            return json.loads(self._client_metadata)
+        except json.JSONDecodeError:
+            return {}
 
     @client_metadata.setter
     def client_metadata(self, value):
-        self.client_metadata = json.dumps(value)
+        self._client_metadata = json.dumps(value)
 
 
 class OAuth2Token(db.Model, OAuth2TokenMixin):
