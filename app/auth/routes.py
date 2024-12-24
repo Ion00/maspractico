@@ -107,13 +107,17 @@ def authorize():
     if not client:
         return jsonify({'error': 'Cliente no encontrado'}), 400
 
+    if isinstance(client.client_metadata, str):
+        client_metadata = json.loads(client.client_metadata)
+    else:
+        client_metadata = client.client_metadata
+
     # **Deserializar `client_metadata` y `redirect_uris`**
     try:
-        client_metadata = json.loads(client.client_metadata)
         redirect_uris = json.loads(client.redirect_uris)
     except json.JSONDecodeError as e:
         return jsonify({
-        'error': f"Error en la configuración del cliente: "
+        'error': f"Error en con redireCTS URI: "
                  f"client_metadata: {client.client_metadata}, "
                  f"redirect_uris: {client.redirect_uris}"
     }), 500

@@ -1,6 +1,9 @@
 import os
 from app import create_app
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 # Leer el entorno desde la variable de entorno FLASK_ENV (por defecto, DevelopmentConfig)
 config_class = os.getenv('FLASK_CONFIG', 'config.DevelopmentConfig')
 

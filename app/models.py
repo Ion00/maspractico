@@ -30,6 +30,12 @@ class User(db.Model, UserMixin):
             db.session.rollback()
             raise ValueError(f"Error al crear el usuario: {str(e)}")
 
+    def get_user_id(self):
+        """
+        Devuelve el ID único del usuario.
+        """
+        return self.id
+
 
 class OAuth2Client(db.Model):
     __tablename__ = 'oauth2_client'
@@ -47,16 +53,66 @@ class OAuth2Client(db.Model):
     # Propiedad para manejar client_metadata
     @property
     def client_metadata(self):
-        if not self._client_metadata:
-            return {}
-        try:
-            return json.loads(self._client_metadata)
-        except json.JSONDecodeError:
-            return {}
+        return json.loads(self._client_metadata)
 
     @client_metadata.setter
     def client_metadata(self, value):
         self._client_metadata = json.dumps(value)
+
+    def check_endpoint_auth_method(self, method, endpoint):
+        """
+        Valida si el cliente soporta el método de autenticación especificado.
+        :param method: Método de autenticación (por ejemplo, "client_secret_basic").
+        :param endpoint: Endpoint donde se verifica el método (por ejemplo, "token").
+        :return: True si es compatible, False en caso contrario.
+        """
+        # Obtenemos los métodos soportados desde client_metadata
+        client_auth_methods = self.client_metadata.get("client_auth_methods", ["none"])
+        
+        # Si no se define explícitamente, se asume que soporta "none" para el flujo implícito
+        return method in client_auth_methods
+
+    def check_redirect_uri(self, redirect_uri):
+        """
+        Verifica si la URI de redirección proporcionada es válida para este cliente.
+        :param redirect_uri: URI de redirección proporcionada en la solicitud.
+        :return: True si la URI es válida, False en caso contrario.
+        """
+        # Deserializar las URIs registradas
+        registered_uris = json.loads(self.redirect_uris)
+
+        # Verificar si la URI proporcionada está en las URIs registradas
+        return redirect_uri in registered_uris
+
+    def check_response_type(self, response_type):
+        """
+        Verifica si el tipo de respuesta proporcionado es compatible con el cliente.
+        :param response_type: Tipo de respuesta (por ejemplo, 'token', 'code').
+        :return: True si es compatible, False en caso contrario.
+        """
+        # Deserializar client_metadata para obtener los tipos de respuesta admitidos
+        metadata = json.loads(self._client_metadata) if self._client_metadata else {}
+        supported_response_types = metadata.get('response_types', [])
+        return response_type in supported_response_types
+
+    def get_allowed_scope(self, scope):
+        """
+        Valida y filtra los scopes solicitados en función de los permisos del cliente.
+        
+        :param scope: Scopes solicitados (cadena de texto separada por espacios).
+        :return: Scopes permitidos (cadena de texto separada por espacios).
+        """
+        # Obtener los scopes permitidos para este cliente
+        allowed_scopes = set(self.scope.split()) if self.scope else set()
+        # Obtener los scopes solicitados
+        requested_scopes = set(scope.split()) if scope else set()
+
+        # Determinar la intersección de los scopes solicitados y permitidos
+        valid_scopes = requested_scopes & allowed_scopes
+
+        # Retornar los scopes permitidos como una cadena separada por espacios
+        return " ".join(valid_scopes)
+
 
 
 class OAuth2Token(db.Model, OAuth2TokenMixin):
